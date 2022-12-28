@@ -276,3 +276,30 @@
     transform: rotate(0deg);
   }
 }
+
+.button {
+  border-radius: 7px;
+  background-color: #0070f3;
+  border: none;
+  color: #ffffff;
+  font-size: 15px;
+  padding: 0 3.5rem;
+  height: 2.81rem;
+  line-height: 2.8rem;
+  box-shadow: 0 6px 20px rgb(0 118 255 / 23%);
+  cursor: pointer;
+  margin-bottom: 2%;
+}
+.callToAction{
+  justify-content: center;
+  text-align: center;
+}
+
+.callToAction > h2 {
+  margin-bottom: 1.25rem;
+}
+
+.callToAction > div {
+  margin-bottom: 1.25rem;
+}
+

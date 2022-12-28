@@ -1,11 +1,125 @@
 import Head from 'next/head'
 import Image from 'next/image'
-import { Inter } from '@next/font/google'
 import styles from '../styles/Home.module.css'
+import { match } from 'ts-pattern'
+import { Inter } from '@next/font/google'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Contract, providers } from 'ethers'
+import { ABI, WHITELIST_CONTRACT_ADDRESS } from './constants'
+import Web3Modal from "web3modal";
 
 const inter = Inter({ subsets: ['latin'] })
 
+
+
+
+
 export default function Home() {
+  const [walletConnected, setWalletConnected] = useState(false)
+  const [joinedWhitelist, setJoinedWhitelist] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [numberOfWhitelisted, setNumberOfWhitelisted] = useState(0)
+  const web3ModalRef = useRef<{connect: () => any}>()
+
+
+  async function getProviderOrSigner(type: 'provider' | 'signer'){
+    const provider = await web3ModalRef.current?.connect()
+    const web3Provider = new providers.Web3Provider(provider)
+
+    const { chainId }  = await web3Provider.getNetwork()
+    if (chainId !== 5) throw new Error('Connection Error: only Goerli allowed')
+
+    return match(type)
+    .with('provider', () => web3Provider)
+    .with('signer', () => web3Provider.getSigner())
+    .exhaustive()
+  }
+
+
+  async function addAddressToWhiteList(){
+    try {
+      const signer = await getProviderOrSigner('signer')
+      const whitelistContract = new Contract(WHITELIST_CONTRACT_ADDRESS, ABI, signer)
+
+      const tx = await whitelistContract.addAddressToWhitelist();
+      setLoading(true)
+
+      await tx.wait()
+      setLoading(false)
+
+      await getNumberOfWhitelisted()
+      setJoinedWhitelist(true)
+    } catch(error){
+      console.error(error)
+    }
+  }
+
+  async function getNumberOfWhitelisted(){
+    try {
+      const provider = await getProviderOrSigner('provider');
+
+      const whitelistContract = new Contract(WHITELIST_CONTRACT_ADDRESS, ABI, provider)
+      const whiteListedCount = await whitelistContract.numAddressesWhitelisted()
+      setNumberOfWhitelisted(whiteListedCount)
+    } catch(error){
+      console.warn(error)
+    }
+  }
+
+  async function checkIfAddressInWitelist(){
+    try {
+      const signer = await getProviderOrSigner('signer') as providers.JsonRpcSigner
+
+      const whitelistContract = new Contract(
+        WHITELIST_CONTRACT_ADDRESS, ABI, signer
+      )
+
+      const address = await signer.getAddress()
+      const joiners = await whitelistContract.whitelistedAddresses(address)
+      setJoinedWhitelist(joiners)
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  const connectWallet = useCallback(async () => {
+    try {
+      await getProviderOrSigner('provider')
+      setWalletConnected(true)
+      checkIfAddressInWitelist()
+      getNumberOfWhitelisted()
+    } catch(error){
+      console.error(error)
+    }
+  }, [])
+
+  const renderButton = () => {
+    if(walletConnected){
+      if(joinedWhitelist){
+        return <div className={styles.description}> Thanks for joining the Whitelist!</div>
+      } else if (loading) {
+        return (<button className={styles.button}>Loading...</button>)
+      } else {
+        return (<button className={styles.button} onClick={addAddressToWhiteList}>Join the Waitlist</button>)
+      }
+    } else {
+      return (<button className={styles.button} onClick={connectWallet}>Connect your wallet</button>)
+    }
+  }
+
+  useEffect(() => {
+    if(!walletConnected) {
+      web3ModalRef.current = new Web3Modal({
+          network: 'goerli',
+          providerOptions: {},
+          disableInjectedProvider: false
+      })
+      connectWallet()
+    }
+  }, [walletConnected, connectWallet])
+
+
+
   return (
     <>
       <Head>
@@ -58,6 +172,13 @@ export default function Home() {
             />
           </div>
         </div>
+
+        <div className={styles.callToAction}>
+          <h2 className={inter.className}>Join The Waitlist!</h2>
+          <div className={styles.description}>{numberOfWhitelisted} have already joined</div>
+          {renderButton()}
+        </div>
+
 
         <div className={styles.grid}>
           <a
